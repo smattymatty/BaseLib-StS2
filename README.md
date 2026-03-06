@@ -1,3 +1,5 @@
+BaseLib is a Slay the Spire 2 mod intended as a base for other mods to use as a dependency.
+
 Placeholder:
 
 If using locally, adjust filepaths at top of csproj.
