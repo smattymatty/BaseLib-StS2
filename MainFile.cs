@@ -1,6 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
+using BaseLib.Config;
+using BaseLib.Config.UI;
 using BaseLib.Patches.Content;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 
@@ -24,6 +27,10 @@ public static class MainFile
         TheBigPatchToCardPileCmdAdd.Patch(harmony);
 
         harmony.PatchAll();
+
+        var panel = new Control();
+        UIElements.CreateButton(panel, "Text", Vector2.Zero, () => { });
+        ModConfigRegistry.Register(ModId, panel);
     }
 
     //Hopefully temporary fix for linux

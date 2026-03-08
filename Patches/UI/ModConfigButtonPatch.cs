@@ -3,46 +3,52 @@ using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Nodes.Screens.ModdingScreen;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using Godot;
-using System;
 using MegaCrit.Sts2.addons.mega_text;
-using MegaCrit.Sts2.Core.Helpers;
 using BaseLib.Config;
 using BaseLib.Config.UI;
+using BaseLib.Utils;
 
 namespace BaseLib.Patches.UI;
 
 [HarmonyPatch(typeof(NModInfoContainer), nameof(NModInfoContainer._Ready))]
 public static class ModConfigButtonPatch
 {
-    public static void Postfix(NModInfoContainer __instance)
+    public static readonly SpireField<NModInfoContainer, NButton> ConfigButton = new((node)=>
     {
-        NButton configButton;
-        try {
-            configButton = SceneHelper.Instantiate<NButton>("ui/button");
-        } catch {
-            configButton = new NButton();
-        }
+        var button = CreateButton(node); 
+        return button;
+    });
+
+    private static NButton CreateButton(NModInfoContainer node)
+    {
+        var button = new NButton(); //For future maybe make a custom scene.
         
-        __instance.AddChild(configButton);
+        button.Name = "ConfigButton";
         
-        configButton.Name = "ConfigButton";
-        // Position it at bottom right
-        configButton.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
-        configButton.Position += new Vector2(-200, -80); // Adjusted position
+        node.AddChild(button);
+        button.Owner = node;
         
-        var label = configButton.GetNodeOrNull<MegaLabel>("Visuals/Label");
-        if (label == null) {
-            label = new MegaLabel();
-            label.Name = "Label";
-            configButton.AddChild(label);
-        }
+        button.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.BottomRight);
+        button.Position += new Vector2(-200, -80); // Adjust position
+        
+        var label = new MegaLabel();
+        label.Name = "Label";
+        button.AddChild(label);
         label.Text = "Config";
 
-        configButton.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(btn => {
-            OnConfigPressed(__instance);
+        button.Connect(NClickableControl.SignalName.Released, Callable.From<NButton>(btn => {
+            OnConfigPressed(node);
         }));
         
-        configButton.Hide();
+        button.Hide();
+        
+        return button;
+    }
+    
+    [HarmonyPostfix]
+    public static void PrepButton(NModInfoContainer __instance)
+    {
+        ConfigButton.Get(__instance);
     }
 
     private static void OnConfigPressed(NModInfoContainer container)
@@ -50,7 +56,7 @@ public static class ModConfigButtonPatch
         var mod = ModConfigFillPatch.CurrentMod;
         if (mod == null) return;
         
-        var configPanel = Registry.Get(mod.pckName);
+        var configPanel = ModConfigRegistry.Get(mod.pckName);
         if (configPanel != null)
         {
             // Find NModdingScreen
@@ -75,15 +81,15 @@ public static class ModConfigButtonPatch
 [HarmonyPatch(typeof(NModInfoContainer), nameof(NModInfoContainer.Fill))]
 public static class ModConfigFillPatch
 {
-    public static Mod CurrentMod;
+    public static Mod? CurrentMod { get; private set; }
 
     public static void Postfix(NModInfoContainer __instance, Mod mod)
     {
         CurrentMod = mod;
-        var configButton = __instance.GetNodeOrNull<NButton>("ConfigButton");
+        var configButton = ModConfigButtonPatch.ConfigButton.Get(__instance);
         if (configButton != null)
         {
-            if (mod.wasLoaded && Registry.Get(mod.pckName) != null)
+            if (mod.wasLoaded && ModConfigRegistry.Get(mod.pckName) != null)
             {
                 configButton.Show();
             }

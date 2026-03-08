@@ -2,7 +2,7 @@ using Godot;
 
 namespace BaseLib.Config;
 
-public static class Registry
+public static class ModConfigRegistry
 {
     private static readonly Dictionary<string, Control> ModConfigs = new();
 
