@@ -8,8 +8,6 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
-using System;
-using System.Collections.Generic;
 using BaseLib.Utils;
 
 namespace BaseLib.Extensions;

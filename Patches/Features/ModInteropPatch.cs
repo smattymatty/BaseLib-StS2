@@ -4,49 +4,43 @@ using System.Runtime.CompilerServices;
 using BaseLib.Utils.ModInterop;
 using BaseLib.Utils.Patching;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Helpers;
-using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
 
 namespace BaseLib.Patches.Features;
 
-[HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))] 
-//Simplest patch that occurs after mod initialization, before anything else is done
-public class ModInteropPatch
+//Called by PostModInitPatch
+internal class ModInterop
 {
     private static readonly BindingFlags ValidMemberFlags = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
     private static readonly FieldInfo WrappedValueField = AccessTools.DeclaredField(typeof(InteropClassWrapper), nameof(InteropClassWrapper.Value));
-    
-    [HarmonyPrefix]
-    private static void FindAndGenerate()
+
+    private readonly Dictionary<string, Assembly?> _loadedIds;
+    internal ModInterop()
     {
         MainFile.Logger.Info("Generating interop methods and properties");
         
-        var loadedIds = ModManager.LoadedMods
+        _loadedIds = ModManager.LoadedMods
             .Where(mod => mod.manifest != null && mod.assembly != null)
             .ToDictionary(mod => mod.manifest?.id ?? "", mod => mod.assembly);
-        
-        Harmony? harmony = null;
-        foreach (var t in ReflectionHelper.ModTypes)
+    }
+
+    internal void ProcessType(Harmony harmony, Type t)
+    {
+        var modInterop = t.GetCustomAttribute<ModInteropAttribute>();
+        if (modInterop == null) return;
+
+        if (!_loadedIds.TryGetValue(modInterop.ModId, out var assembly)) return;
+        if (assembly == null)
         {
-            var modInterop = t.GetCustomAttribute<ModInteropAttribute>();
-            if (modInterop == null) continue;
-
-            if (!loadedIds.TryGetValue(modInterop.ModId, out var assembly)) continue;
-            if (assembly == null)
-            {
-                MainFile.Logger.Error($"Cannot generate interop for mod {modInterop.ModId}, assembly not found");
-                continue;
-            }
-            
-            harmony ??= new("ModInterop");
-            
-            MainFile.Logger.Info($"Interop type {t} for mod {modInterop.ModId}");
-
-            var members = t.GetMembers(ValidMemberFlags);
-
-            GenInteropMembers(members, harmony, assembly, modInterop.Type, true);
+            MainFile.Logger.Error($"Cannot generate interop for mod {modInterop.ModId}, assembly not found");
+            return;
         }
+            
+        MainFile.Logger.Info($"Interop type {t} for mod {modInterop.ModId}");
+
+        var members = t.GetMembers(ValidMemberFlags);
+
+        GenInteropMembers(members, harmony, assembly, modInterop.Type, true);
     }
 
     private static bool GenInteropMembers(MemberInfo[] members, Harmony harmony, Assembly assembly, string? contextTargetType, bool requireStatic)

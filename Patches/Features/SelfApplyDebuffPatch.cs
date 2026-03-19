@@ -29,7 +29,7 @@ public static class SelfApplyDebuffPatch
         // At this point, all the logic in the original function has been executed, including the part that sets SkipNextDurationTick to true.
         if (target.CombatState?.CurrentSide == CombatSide.Player 
             && target.Side == CombatSide.Player && power is { Type: PowerType.Debuff, Applier.Side: CombatSide.Player }
-            && (power.Applier?.Monster is ICustomModel || power.Applier?.Player?.Character is ICustomModel || cardSource is ICustomModel))
+            && (power is ICustomModel || power.Applier?.Monster is ICustomModel || power.Applier?.Player?.Character is ICustomModel || cardSource is ICustomModel))
         {
             // Ensure player-applied debuffs on self/allies tick at current (enemy's) turn end
             power.SkipNextDurationTick = false;
