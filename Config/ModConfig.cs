@@ -12,7 +12,6 @@ using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
-using Environment = System.Environment;
 
 namespace BaseLib.Config;
 
@@ -56,27 +55,24 @@ public abstract partial class ModConfig
     {
         ModPrefix = GetType().GetPrefix();
         _modConfigName = GetType().FullName ?? "unknown";
-        _path = GetType().GetRootNamespace();
-        if (_path == "") _path = "Unknown";
-        
-        _path = SpecialCharRegex().Replace(_path, "");
-        
-        filename = filename == null ? _path : SpecialCharRegex().Replace(filename, "");
+        var rootNamespace = GetType().GetRootNamespace();
+
+        if (string.IsNullOrEmpty(rootNamespace) && string.IsNullOrEmpty(filename))
+        {
+            var message = "Cannot determine a safe configuration file path for " +
+                          $"{_modConfigName} (assembly {GetType().Assembly.GetName().Name}). " +
+                          "You must either place your configuration class inside a namespace, " +
+                          "or explicitly provide a filename in the constructor.";
+            ModConfigLogger.Error(message); // Shows it in the GUI when opening ANY mod config menu
+            throw new InvalidOperationException(message);
+        }
+
+        var defaultFilename = SpecialCharRegex().Replace(rootNamespace, "");
+
+        filename = filename == null ? defaultFilename : SpecialCharRegex().Replace(filename, "");
         if (!filename.Contains('.')) filename += ".cfg";
 
-        string? appData;
-        if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
-        {
-            // On Android, use Godot's user data directory
-            appData = OS.GetUserDataDir();
-        }
-        else
-        {
-            appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            if (appData == "") appData = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
-        }   
-        var libFolder = OperatingSystem.IsMacOS() ? "Library" : ".baselib";
-        _path = Path.Combine(appData, libFolder, _path, filename);
+        _path = Path.Combine(OS.GetUserDataDir(), "mod_configs", filename);
 
         CheckConfigProperties();
         Init();
