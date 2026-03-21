@@ -1,7 +1,9 @@
 ﻿using System.Reflection;
+using BaseLib.Utils;
 using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.ControllerInput;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -15,9 +17,9 @@ public partial class NConfigSlider : Control
     private PropertyInfo? _property;
     private string _displayFormat = "{0}";
 
-    private NSlider _slider = null!;
-    private MegaLabel _sliderLabel = null!;
-    private NSelectionReticle _selectionReticle = null!;
+    private NSlider _slider;
+    private MegaLabel _sliderLabel;
+    private NSelectionReticle _selectionReticle;
 
     // _realMin is a workaround to support negative numbers, without forcing
     // the underlying NSlider to understand that such things really exist
@@ -42,14 +44,16 @@ public partial class NConfigSlider : Control
         SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
+
+        this.TransferAllNodes(SceneHelper.GetScenePath("screens/settings_slider"));
+
+        _slider = GetNode<NSlider>("Slider");
+        _sliderLabel = GetNode<MegaLabel>("SliderValue");
+        _selectionReticle = GetNode<NSelectionReticle>((NodePath) "SelectionReticle");
     }
 
     public override void _Ready()
     {
-        _slider = GetNode<NSlider>("Slider");
-        _sliderLabel = GetNode<MegaLabel>("SliderValue");
-        _selectionReticle = GetNode<NSelectionReticle>((NodePath) "SelectionReticle");
-
         _slider.FocusMode = FocusModeEnum.None;
         var numSteps = (float)((_slider.MaxValue - _slider.MinValue) / _slider.Step);
         var dynamicFloor = 1.5f / numSteps;

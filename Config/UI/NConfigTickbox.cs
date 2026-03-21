@@ -1,5 +1,7 @@
 ﻿using System.Reflection;
+using BaseLib.Utils;
 using Godot;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 
 namespace BaseLib.Config.UI;
@@ -16,6 +18,8 @@ public partial class NConfigTickbox : NSettingsTickbox
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
         MouseFilter = MouseFilterEnum.Pass;
+
+        this.TransferAllNodes(SceneHelper.GetScenePath("screens/settings_tickbox"));
     }
     
     public override void _Ready()

@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
@@ -23,6 +24,8 @@ public partial class NConfigDropdown : NSettingsDropdown
         SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
+
+        this.TransferAllNodes(SceneHelper.GetScenePath("screens/settings_dropdown"));
     }
 
     public override void _Process(double delta)

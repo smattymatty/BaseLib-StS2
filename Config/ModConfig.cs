@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using BaseLib.Config.UI;
 using BaseLib.Extensions;
-using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
@@ -286,27 +285,27 @@ public abstract partial class ModConfig
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 
-    // Creates a raw toggle control, with no layout (see SimpleModConfig.CreateToggleOption unless you want custom layout)
+    // Creates a raw toggle control, with no layout (use SimpleModConfig.CreateToggleOption unless you want custom layout)
     protected NConfigTickbox CreateRawTickboxControl(PropertyInfo property)
     {
-        var tickbox = new NConfigTickbox().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_tickbox"));
+        var tickbox = new NConfigTickbox();
         tickbox.Initialize(this, property);
         return tickbox;
     }
 
-    // Creates a raw slider control, with no layout (see SimpleModConfig.CreateSliderOption unless you want custom layout)
+    // Creates a raw slider control, with no layout (use SimpleModConfig.CreateSliderOption unless you want custom layout)
     protected NConfigSlider CreateRawSliderControl(PropertyInfo property)
     {
-        var slider = new NConfigSlider().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_slider"));
+        var slider = new NConfigSlider();
         slider.Initialize(this, property);
         return slider;
     }
 
-    // Creates a raw dropdown control, with no layout (see SimpleModConfig.CreateDropdownOption unless you want custom layout)
+    // Creates a raw dropdown control, with no layout (use SimpleModConfig.CreateDropdownOption unless you want custom layout)
     private static readonly FieldInfo DropdownNode = AccessTools.DeclaredField(typeof(NDropdownPositioner), "_dropdownNode");
     protected NDropdownPositioner CreateRawDropdownControl(PropertyInfo property)
     {
-        var dropdown = new NConfigDropdown().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_dropdown"));
+        var dropdown = new NConfigDropdown();
         var items = CreateDropdownItems(property, out var currentIndex);
         dropdown.SetItems(items, currentIndex);
         
