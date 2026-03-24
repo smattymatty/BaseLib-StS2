@@ -21,6 +21,10 @@ public abstract class CustomOrbModel : OrbModel, ICustomModel
     public virtual string? CustomEvokeSfx => null;
     public virtual string? CustomChannelSfx => null;
 
+    protected override string PassiveSfx => CustomPassiveSfx ?? base.PassiveSfx;
+    protected override string EvokeSfx => CustomEvokeSfx ?? base.EvokeSfx;
+    protected override string ChannelSfx => CustomChannelSfx ?? base.ChannelSfx;
+
     /// <summary>
     /// Override to create a custom sprite for this orb.
     /// If null is returned, falls back to CustomSpritePath or the default sprite.
@@ -73,45 +77,6 @@ class CustomOrbCreateSprite
             return true;
 
         __result = sprite;
-        return false;
-    }
-}
-
-[HarmonyPatch(typeof(OrbModel), "PassiveSfx", MethodType.Getter)]
-class CustomOrbPassiveSfx
-{
-    [HarmonyPrefix]
-    static bool Custom(OrbModel __instance, ref string __result)
-    {
-        if (__instance is not CustomOrbModel custom || custom.CustomPassiveSfx is not string sfx)
-            return true;
-        __result = sfx;
-        return false;
-    }
-}
-
-[HarmonyPatch(typeof(OrbModel), "EvokeSfx", MethodType.Getter)]
-class CustomOrbEvokeSfx
-{
-    [HarmonyPrefix]
-    static bool Custom(OrbModel __instance, ref string __result)
-    {
-        if (__instance is not CustomOrbModel custom || custom.CustomEvokeSfx is not string sfx)
-            return true;
-        __result = sfx;
-        return false;
-    }
-}
-
-[HarmonyPatch(typeof(OrbModel), "ChannelSfx", MethodType.Getter)]
-class CustomOrbChannelSfx
-{
-    [HarmonyPrefix]
-    static bool Custom(OrbModel __instance, ref string __result)
-    {
-        if (__instance is not CustomOrbModel custom || custom.CustomChannelSfx is not string sfx)
-            return true;
-        __result = sfx;
         return false;
     }
 }
