@@ -45,6 +45,8 @@ public abstract partial class ModConfig
     private readonly string _modConfigName;
     private bool _savingDisabled;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private CancellationTokenSource? _saveDebounceToken;
+    private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
 
     protected readonly List<PropertyInfo> ConfigProperties = [];
     private readonly Dictionary<string, object?> _defaultValues = new();
@@ -159,8 +161,81 @@ public abstract partial class ModConfig
         ConfigChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    //Would be slightly more straightforward to directly serialize/deserialize the class,
-    //But it would require slightly more setup on the user's part.
+    /// <summary>
+    /// Static helper to reload your mod's config, for when you don't have easy access to the instance.
+    /// </summary>
+    /// <typeparam name="T">Your ModConfig subclass</typeparam>
+    /// <example><code>
+    /// internal class MyConfig : SimpleModConfig { ... }
+    /// ModConfig.Load&lt;MyConfig&gt;();
+    /// </code></example>
+    public static void Load<T>() where T : ModConfig
+    {
+        ModConfigRegistry.Get<T>()?.Load();
+    }
+
+    /// <summary>
+    /// <para>Save after <paramref name="delayMs"/> ms, unless SaveDebounced was called again during the delay, in which
+    /// case the old request is canceled and the new one replaces it.</para>
+    /// <para>Note that you ONLY ever need to call this if you yourself modify the properties at runtime. BaseLib will
+    /// always save when the user changes something in the settings screen.</para>
+    /// </summary>
+    /// <typeparam name="T">Your ModConfig subclass</typeparam>
+    /// <example><code>
+    /// internal class MyConfig : SimpleModConfig { ... }
+    /// ModConfig.SaveDebounced&lt;MyConfig&gt;();
+    /// </code></example>
+    public static void SaveDebounced<T>(int delayMs = 1000) where T : ModConfig
+    {
+        ModConfigRegistry.Get<T>()?.SaveDebounced(delayMs);
+    }
+
+    /// <summary>
+    /// <para>Save after <paramref name="delayMs"/> ms, unless SaveDebounced was called again during the delay, in which case
+    /// the old request is canceled and the new one replaces it.</para>
+    /// <para>Note that you ONLY ever need to call this if you yourself modify the properties at runtime. BaseLib will always
+    /// save when the user changes something in the settings screen.</para>
+    /// </summary>
+    public void SaveDebounced(int delayMs = 1000) => SaveDebouncedInternal(delayMs);
+
+    private async void SaveDebouncedInternal(int delayMs = 1000)
+    {
+        try
+        {
+            // Cancel the previous request, if any, prior to replacing it
+            _saveDebounceToken?.Cancel();
+            _saveDebounceToken?.Dispose();
+
+            _saveDebounceToken = new CancellationTokenSource();
+            var token = _saveDebounceToken.Token;
+            await Task.Delay(delayMs, token);
+
+            await _saveLock.WaitAsync(token);
+            try
+            {
+                Save();
+            }
+            finally
+            {
+                _saveLock.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Another save request came in to replace this one; this is fully expected
+        }
+        catch (Exception ex)
+        {
+            ModConfigLogger.Error($"Failed to save config for {_modConfigName}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Immediately save the current configuration to disk. Prefer using <see cref="SaveDebounced"/> (on the instance or
+    /// its static variant) instead unless you absolutely must save *now*. Indeed, using SaveDebounced(0) is likely still
+    /// better than calling this directly.<br/>
+    /// Using both is not recommended and may cause issues with locking/hangs.
+    /// </summary>
     public void Save()
     {
         if (_savingDisabled)
