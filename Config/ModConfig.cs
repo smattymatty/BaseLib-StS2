@@ -37,6 +37,8 @@ public abstract partial class ModConfig
     /// a property.
     /// </summary>
     public event EventHandler? ConfigChanged;
+    public event Action? OnConfigReloaded;
+    public void ConfigReloaded() => OnConfigReloaded?.Invoke();
 
     private readonly string _path;
     public string ModPrefix { get; private set; }
@@ -44,8 +46,11 @@ public abstract partial class ModConfig
     private readonly string _modConfigName;
     private bool _savingDisabled;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private CancellationTokenSource? _saveDebounceToken;
+    private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
 
     protected readonly List<PropertyInfo> ConfigProperties = [];
+    private readonly Dictionary<string, object?> _defaultValues = new();
 
     public static class ModConfigLogger
     {
@@ -105,6 +110,7 @@ public abstract partial class ModConfig
         ConfigProperties.Clear();
         foreach (var property in configType.GetProperties())
         {
+            if (property.GetCustomAttribute<ConfigIgnoreAttribute>() != null) continue;
             if (!property.CanRead || !property.CanWrite) continue;
             if (property.GetMethod?.IsStatic != true)
             {
@@ -115,11 +121,38 @@ public abstract partial class ModConfig
             ConfigProperties.Add(property);
         }
     }
-    
+
+    public T? GetDefaultValue<T>(string propertyName)
+    {
+        if (_defaultValues.TryGetValue(propertyName, out var val) && val is T typedValue)
+        {
+            return typedValue;
+        }
+
+        return default;
+    }
+
+    protected void RestoreDefaultsNoConfirm()
+    {
+        foreach (var property in ConfigProperties)
+        {
+            var defaultValue = GetDefaultValue<object?>(property.Name);
+            property.SetValue(null, defaultValue);
+        }
+
+        Save();
+        OnConfigReloaded?.Invoke();
+    }
+
     public abstract void SetupConfigUI(Control optionContainer);
 
     private void Init()
     {
+        foreach (var property in ConfigProperties)
+        {
+            _defaultValues.TryAdd(property.Name, property.GetValue(null));
+        }
+
         if (File.Exists(_path)) Load();
         else Save(); // Save default values
     }
@@ -129,8 +162,81 @@ public abstract partial class ModConfig
         ConfigChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    //Would be slightly more straightforward to directly serialize/deserialize the class,
-    //But it would require slightly more setup on the user's part.
+    /// <summary>
+    /// Static helper to reload your mod's config, for when you don't have easy access to the instance.
+    /// </summary>
+    /// <typeparam name="T">Your ModConfig subclass</typeparam>
+    /// <example><code>
+    /// internal class MyConfig : SimpleModConfig { ... }
+    /// ModConfig.Load&lt;MyConfig&gt;();
+    /// </code></example>
+    public static void Load<T>() where T : ModConfig
+    {
+        ModConfigRegistry.Get<T>()?.Load();
+    }
+
+    /// <summary>
+    /// <para>Save after <paramref name="delayMs"/> ms, unless SaveDebounced was called again during the delay, in which
+    /// case the old request is canceled and the new one replaces it.</para>
+    /// <para>Note that you ONLY ever need to call this if you yourself modify the properties at runtime. BaseLib will
+    /// always save when the user changes something in the settings screen.</para>
+    /// </summary>
+    /// <typeparam name="T">Your ModConfig subclass</typeparam>
+    /// <example><code>
+    /// internal class MyConfig : SimpleModConfig { ... }
+    /// ModConfig.SaveDebounced&lt;MyConfig&gt;();
+    /// </code></example>
+    public static void SaveDebounced<T>(int delayMs = 1000) where T : ModConfig
+    {
+        ModConfigRegistry.Get<T>()?.SaveDebounced(delayMs);
+    }
+
+    /// <summary>
+    /// <para>Save after <paramref name="delayMs"/> ms, unless SaveDebounced was called again during the delay, in which case
+    /// the old request is canceled and the new one replaces it.</para>
+    /// <para>Note that you ONLY ever need to call this if you yourself modify the properties at runtime. BaseLib will always
+    /// save when the user changes something in the settings screen.</para>
+    /// </summary>
+    public void SaveDebounced(int delayMs = 1000) => SaveDebouncedInternal(delayMs);
+
+    private async void SaveDebouncedInternal(int delayMs = 1000)
+    {
+        try
+        {
+            // Cancel the previous request, if any, prior to replacing it
+            _saveDebounceToken?.Cancel();
+            _saveDebounceToken?.Dispose();
+
+            _saveDebounceToken = new CancellationTokenSource();
+            var token = _saveDebounceToken.Token;
+            await Task.Delay(delayMs, token);
+
+            await _saveLock.WaitAsync(token);
+            try
+            {
+                Save();
+            }
+            finally
+            {
+                _saveLock.Release();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Another save request came in to replace this one; this is fully expected
+        }
+        catch (Exception ex)
+        {
+            ModConfigLogger.Error($"Failed to save config for {_modConfigName}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Immediately save the current configuration to disk. Prefer using <see cref="SaveDebounced"/> (on the instance or
+    /// its static variant) instead unless you absolutely must save *now*. Indeed, using SaveDebounced(0) is likely still
+    /// better than calling this directly.<br/>
+    /// Using both is not recommended and may cause issues with locking/hangs.
+    /// </summary>
     public void Save()
     {
         if (_savingDisabled)
@@ -147,7 +253,6 @@ public abstract partial class ModConfig
             foreach (var property in ConfigProperties)
             {
                 var value = property.GetValue(null);
-
                 var converter = TypeDescriptor.GetConverter(property.PropertyType);
                 var stringValue = converter.ConvertToInvariantString(value);
 
@@ -165,6 +270,7 @@ public abstract partial class ModConfig
         {
             // During testing, I have never seen an exception here, but let's avoid a game crash/menu hang, etc.
             ModConfigLogger.Error($"Failed to save config {_modConfigName}: unknown error during conversion.", false);
+            return;
         }
 
         try
@@ -195,8 +301,11 @@ public abstract partial class ModConfig
 
         try
         {
-            using var fileStream = File.OpenRead(_path);
-            var values = JsonSerializer.Deserialize<Dictionary<string, string>>(fileStream);
+            Dictionary<string, string>? values;
+            using (var fileStream = File.OpenRead(_path))
+            {
+                values = JsonSerializer.Deserialize<Dictionary<string, string>>(fileStream);
+            }
 
             if (values == null)
             {
@@ -281,11 +390,22 @@ public abstract partial class ModConfig
 
     protected string GetLabelText(string labelName)
     {
-        var loc = LocString.GetIfExists("settings_ui", ModPrefix + StringHelper.Slugify(labelName) + ".title");
+        var loc = LocString.GetIfExists("settings_ui", $"{ModPrefix}{StringHelper.Slugify(labelName)}.title");
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 
-    // Creates a raw toggle control, with no layout (use SimpleModConfig.CreateToggleOption unless you want custom layout)
+    protected static string GetBaseLibLabelText(string labelName)
+    {
+        var loc = LocString.GetIfExists("settings_ui", $"BASELIB-{StringHelper.Slugify(labelName)}.title");
+        return loc != null ? loc.GetFormattedText() : labelName;
+    }
+
+    /// <summary>
+    /// Creates a raw control, with no layout (label, margins), no automatic hover tip, etc.<br/>
+    /// Use the Create*Option methods instead unless you need a custom layout (or use them, and customize them).
+    /// </summary>
+    /// <param name="property">The property this control is bound to. Fetch with e.g. GetType().GetProperty() in
+    /// a ModConfig.</param>
     protected NConfigTickbox CreateRawTickboxControl(PropertyInfo property)
     {
         var tickbox = new NConfigTickbox();
@@ -293,7 +413,7 @@ public abstract partial class ModConfig
         return tickbox;
     }
 
-    // Creates a raw slider control, with no layout (use SimpleModConfig.CreateSliderOption unless you want custom layout)
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     protected NConfigSlider CreateRawSliderControl(PropertyInfo property)
     {
         var slider = new NConfigSlider();
@@ -301,19 +421,40 @@ public abstract partial class ModConfig
         return slider;
     }
 
-    // Creates a raw dropdown control, with no layout (use SimpleModConfig.CreateDropdownOption unless you want custom layout)
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
+    protected NConfigLineEdit CreateRawLineEditControl(PropertyInfo property)
+    {
+        var lineEdit = new NConfigLineEdit();
+        lineEdit.Initialize(this, property);
+        return lineEdit;
+    }
+
+    /// <summary>
+    /// Creates a raw button control. You may want <see cref="SimpleModConfig.CreateButton" /> instead.
+    /// </summary>
+    /// <param name="labelText">The text to place on the button</param>
+    /// <param name="onPressed">Action to perform when the user clicks/presses the button.</param>
+    protected NConfigButton CreateRawButtonControl(string labelText, Action onPressed)
+    {
+        var button = new NConfigButton();
+        button.Initialize(labelText, onPressed);
+        return button;
+    }
+
     private static readonly FieldInfo DropdownNode = AccessTools.DeclaredField(typeof(NDropdownPositioner), "_dropdownNode");
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     protected NDropdownPositioner CreateRawDropdownControl(PropertyInfo property)
     {
         var dropdown = new NConfigDropdown();
-        var items = CreateDropdownItems(property, out var currentIndex);
-        dropdown.SetItems(items, currentIndex);
-        
+        dropdown.Initialize(this, property, ModPrefix, Changed);
+        dropdown.SetFromProperty();
+
         var dropdownPositioner = new NDropdownPositioner();
-        dropdownPositioner.SetCustomMinimumSize(new(320, 64));
+        dropdownPositioner.SetCustomMinimumSize(new(324, 64));
         dropdownPositioner.FocusMode = Control.FocusModeEnum.All;
         dropdownPositioner.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
         dropdownPositioner.SizeFlagsVertical = Control.SizeFlags.Fill;
+
         DropdownNode.SetValue(dropdownPositioner, dropdown);
 
         dropdownPositioner.AddChild(dropdown);
@@ -322,42 +463,7 @@ public abstract partial class ModConfig
         return dropdownPositioner;
     }
 
-    private List<NConfigDropdownItem.ConfigDropdownItem> CreateDropdownItems(PropertyInfo property, out int currentIndex)
-    {
-        List<NConfigDropdownItem.ConfigDropdownItem> items = [];
-        var type = property.PropertyType;
-        var currentValue = property.GetValue(null);
-        int count = 0;
-        currentIndex = 0;
-        
-        if (type.IsEnum)
-        {
-            foreach (var value in type.GetEnumValues())
-            {
-                if (currentValue != null && currentValue.Equals(value))
-                {
-                    currentIndex = count;
-                }
-                ++count;
-                var loc = LocString.GetIfExists("settings_ui", $"{ModPrefix}{StringHelper.Slugify(property.Name)}.{value}");
-                var label = loc?.GetRawText() ?? value?.ToString() ?? "UNKNOWN";
-                items.Add(new (label, () =>
-                {
-                    property.SetValue(null, value);
-                    Changed();
-                }));
-            }
-        }
-        else //Check for dropdown options attribute
-        {
-            throw new NotSupportedException("Dropdown only supports enum types currently");
-        }
-
-        return items;
-    }
-
-    // Creates a raw label control, with no layout (see SimpleModConfig.Create*Option and CreateSectionHeader for
-    // layout-ready controls)
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     public static MegaRichTextLabel CreateRawLabelControl(string labelText, int fontSize)
     {
         var kreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");

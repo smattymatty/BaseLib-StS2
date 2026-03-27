@@ -1,24 +1,18 @@
 {
-  "BASELIB.mod_title": "Example mod configuration",
+  "BASELIB.mod_title": "BaseLib",
 
-  "BASELIB-FIRST_SECTION.title": "These are just example options",
-  "BASELIB-SECOND_SECTION.title": "Nothing here does anything at all",
+  "BASELIB-RESTORE_DEFAULTS_BUTTON.title": "Restore defaults",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.header": "Confirm restore",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.body": "Restore default settings for this mod?",
 
-  "BASELIB-ENABLE_DEBUG_LOGGING.title": "Enable debug logging",
-  "BASELIB-ENABLE_DEBUG_LOGGING.hover.title": "Explicit hover title",
-  "BASELIB-ENABLE_DEBUG_LOGGING.hover.desc": "Pretend setting to enable debug logging",
+  "BASELIB-LOG_SECTION.title": "Log window/Console",
 
-  "BASELIB-ALLOW_DUPLICATE_RELICS.title": "Allow duplicate relics",
-  "BASELIB-ALLOW_DUPLICATE_RELICS.hover.desc": "Pretend setting to allow duplicate relics",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "Open log window on startup",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.hover.desc": "Opens the BaseLib log window automatically when the main menu loads.",
 
-  "BASELIB-CREATED_CARD_KEYWORD.title": "Created card keyword",
-  "BASELIB-CREATED_CARD_KEYWORD.hover.desc": "Supposedly adds this keyword to cards created in combat (but doesn't actually)",
+  "BASELIB-LIMITED_LOG_SIZE.title": "Log history size",
+  "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Maximum number of lines retained in the in-game log window.",
 
-  "BASELIB-ENEMY_DAMAGE_MULTIPLIER.title": "Enemy damage multiplier",
-  "BASELIB-ENEMY_DAMAGE_MULTIPLIER.hover.title": "",
-  "BASELIB-ENEMY_DAMAGE_MULTIPLIER.hover.desc": "More damage equals more fun...?",
-
-  "BASELIB-STARTING_HEALTH_OFFSET.title": "Starting health offset",
-  "BASELIB-STARTING_ACT.title": "Starting act",
-  "BASELIB-MINIMUM_ELITES_PER_ACT.title": "Minimum elites per act"
+  "BASELIB-LOG_FONT_SIZE.title": "Log font size",
+  "BASELIB-LOG_FONT_SIZE.hover.desc": "Can also be set with Ctrl+scroll in the log window."
 }

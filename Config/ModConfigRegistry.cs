@@ -15,4 +15,9 @@ public static class ModConfigRegistry
         if (modId == null) return null;
         return ModConfigs.GetValueOrDefault(modId);
     }
+
+    public static T? Get<T>() where T : ModConfig
+    {
+        return ModConfigs.Values.OfType<T>().FirstOrDefault();
+    }
 }

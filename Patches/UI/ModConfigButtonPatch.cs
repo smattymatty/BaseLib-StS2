@@ -3,15 +3,15 @@ using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Nodes.Screens.ModdingScreen;
 using Godot;
 using BaseLib.Config;
+using BaseLib.Config.UI;
 using BaseLib.Utils;
-using NConfigButton = BaseLib.Config.UI.NConfigButton;
 
 namespace BaseLib.Patches.UI;
 
 [HarmonyPatch(typeof(NModInfoContainer), nameof(NModInfoContainer._Ready))]
 public static class ModConfigButtonPatch
 {
-    public static readonly SpireField<NModInfoContainer, Control> ConfigButton = new(node => NConfigButton.Create("ConfigButton", node));
+    public static readonly SpireField<NModInfoContainer, Control> ConfigButton = new(node => NConfigOpenerButton.Create("ConfigButton", node));
     
     [HarmonyPostfix]
     public static void PrepButton(NModInfoContainer __instance)
@@ -31,7 +31,7 @@ public static class ModConfigFillPatch
         var configButton = ModConfigButtonPatch.ConfigButton.Get(__instance);
         if (configButton != null)
         {
-            if (mod.wasLoaded && mod.manifest != null && ModConfigRegistry.Get(mod.manifest.id) != null)
+            if (mod.state == ModLoadState.Loaded && mod.manifest != null && ModConfigRegistry.Get(mod.manifest.id) != null)
             {
                 configButton.Show();
             }
