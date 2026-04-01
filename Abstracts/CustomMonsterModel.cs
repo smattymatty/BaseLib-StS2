@@ -1,38 +1,31 @@
-﻿using BaseLib.Utils;
-using BaseLib.Utils.NodeFactories;
-using Godot;
+﻿using BaseLib.Extensions;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Animation;
-using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Bindings.MegaSpine;
-using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.MonsterMoves.MonsterMoveStateMachine;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 
 namespace BaseLib.Abstracts;
 
-public abstract class CustomMonsterModel : MonsterModel, ICustomModel
+public abstract class CustomMonsterModel : MonsterModel, ICustomModel, ISceneConversions
 {
     /// <summary>
-    /// Override this or place your scene at res://scenes/creature_visuals/class_name.tscn
+    /// Override this or place your scene at res://scenes/creature_visuals/modname-class_name.tscn
     /// </summary>
     public virtual string? CustomVisualPath => null;
+
+    /// <summary>
+    /// Use if you want to generate creature visuals entirely yourself.
+    /// Otherwise, just override CustomVisualPath.
+    /// </summary>
+    /// <returns></returns>
+    public virtual NCreatureVisuals? CreateCustomVisuals() => null;
+    
     
     public virtual string? CustomAttackSfx => null;
     public virtual string? CustomCastSfx => null;
     public virtual string? CustomDeathSfx => null;
-    
-    
-    /// <summary>
-    /// By default, will convert a scene containing the necessary nodes into a NCreatureVisuals even if it is not one.
-    /// </summary>
-    /// <returns></returns>
-    public virtual NCreatureVisuals? CreateCustomVisuals() {
-        string? path = (CustomVisualPath ?? VisualsPath);
-        if (path == null) return null;
-        return NodeFactory<NCreatureVisuals>.CreateFromScene(path);
-    }
+
     
     
     /// <summary>
@@ -94,6 +87,37 @@ public abstract class CustomMonsterModel : MonsterModel, ICustomModel
         animator.AddAnyState("Cast", castAnim);
 
         return animator;
+    }
+
+    public void RegisterSceneConversions()
+    {
+        CustomVisualPath?.RegisterSceneForConversion<NCreatureVisuals>();
+    }
+}
+
+[HarmonyPatch(typeof(MonsterModel), nameof(MonsterModel.CreateVisuals), MethodType.Getter)]
+class CreateVisuals
+{
+    [HarmonyPrefix]
+    static bool CustomCreateVisuals(MonsterModel __instance, ref NCreatureVisuals? __result)
+    {
+        if (__instance is not CustomMonsterModel customMonster) return true;
+
+        __result = customMonster.CreateCustomVisuals();
+        return __result == null;
+    }
+}
+
+[HarmonyPatch(typeof(MonsterModel), "VisualsPath", MethodType.Getter)]
+class VisualsPath
+{
+    [HarmonyPrefix]
+    static bool CustomVisualsPath(MonsterModel __instance, ref string? __result)
+    {
+        if (__instance is not CustomMonsterModel customMonster) return true;
+
+        __result = customMonster.CustomVisualPath;
+        return __result == null;
     }
 }
 

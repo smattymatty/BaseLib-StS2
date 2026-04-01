@@ -84,7 +84,6 @@ class CustomCardFrameMaterial
         if (__instance is not CustomCardModel customCard) return true;
         
         __result = customCard.CustomFrameMaterial;
-        if (__result != null) BaseLibMain.Logger.Info($"Custom material for card {__instance.Title}");
         return __result == null;
     }
 }
@@ -137,7 +136,6 @@ class CustomCardPortraitPath
             __result = customCard.CustomPortrait.ResourcePath;
         } else if (customCard.CustomPortraitPath != null) {
             __result = ResourceLoader.Load<Texture2D>(customCard.CustomPortraitPath).ResourcePath;
-            // Confusingly CustomPortraitPath is a png
         } else {
             return true;
         }
