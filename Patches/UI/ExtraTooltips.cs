@@ -38,16 +38,3 @@ public class ExtraTooltips
         }
     }
 }
-
-[HarmonyPatch(typeof(DynamicVar), nameof(DynamicVar.Clone))]
-class CloneTooltips
-{
-    [HarmonyPostfix]
-    static DynamicVar Copy(DynamicVar __result, DynamicVar __instance)
-    {
-        var tipMaker = DynamicVarExtensions.DynamicVarTips[__instance];
-        if (tipMaker != null) DynamicVarExtensions.DynamicVarTips[__result] = tipMaker;
-
-        return __result;
-    }
-}

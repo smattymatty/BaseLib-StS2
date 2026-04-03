@@ -9,12 +9,20 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using BaseLib.Utils;
+using HarmonyLib;
 
 namespace BaseLib.Extensions;
 
 public static class DynamicVarExtensions
 {
     public static readonly SpireField<DynamicVar, Func<IHoverTip>> DynamicVarTips = new(() => null);
+    public static readonly SpireField<DynamicVar, decimal?> DynamicVarUpgrades = new(() => null);
+
+    public static DynamicVar WithUpgrade(this DynamicVar dynamicVar, decimal upgradeValue)
+    {
+        DynamicVarUpgrades[dynamicVar] = upgradeValue;
+        return dynamicVar;
+    }
 
     //At the moment cardPlay being null seems fine - may change in the future
     public static decimal CalculateBlock(this DynamicVar var, Creature creature, ValueProp props, CardPlay? cardPlay = null, CardModel? cardSource = null)
@@ -61,5 +69,19 @@ public static class DynamicVarExtensions
         };
 
         return var;
+    }
+    
+    //Patch required to copy SpireField values to DynamicVar clones
+    [HarmonyPatch(typeof(DynamicVar), nameof(DynamicVar.Clone))]
+    class CloneTooltips
+    {
+        [HarmonyPostfix]
+        static DynamicVar Copy(DynamicVar __result, DynamicVar __instance)
+        {
+            DynamicVarTips[__result] = DynamicVarTips[__instance];
+            DynamicVarUpgrades[__result] = DynamicVarUpgrades[__instance];
+
+            return __result;
+        }
     }
 }
