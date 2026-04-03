@@ -1,106 +1,124 @@
-﻿using System.Collections.Generic;
+﻿using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Assets;
-using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
-using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Abstracts;
 
 public abstract class CustomEncounterModel : EncounterModel, ICustomModel
 {
-    protected override bool HasCustomBackground => false;
-    public virtual string? CustomBackgroundScenePath => null;
-    public virtual string AssetsName => Id.Entry.ToLowerInvariant();
-    public virtual bool UseVanillaBackground => false;
-    private string CustomBackgroundScenePathFallback => SceneHelper.GetScenePath($"backgrounds/{AssetsName}/{AssetsName}_background");
-    public virtual NCombatBackground CreateCustomBackground(ActModel parentAct, Rng rng) {
-        if(UseVanillaBackground)
-            return NCombatBackground.Create(CreateBackgroundAssetsForCustom(rng));
-        return CreateNCombatBackground(CustomBackgroundScenePath);
-    }
-    public NCombatBackground CreateNCombatBackground(string? path)
-    {
-        Control control = PreloadManager.Cache.GetScene(path ?? CustomBackgroundScenePathFallback).Instantiate<Control>();
-        NCombatBackground? ncombatBackground = control as NCombatBackground;
-        if(ncombatBackground != null)
-            return ncombatBackground;
-        ncombatBackground = new NCombatBackground();
-        AddCustomLayer(ncombatBackground,control);
-        return ncombatBackground;
-    }
-
-    private static void AddCustomLayer(NCombatBackground bg, Control layer) {
-        layer.Visible = true;
-        bg.AddChildSafely(layer);
-    }
+    public override RoomType RoomType { get; }
+    private BackgroundAssets? _customBackgroundAssets;
     
-    public IEnumerable<string> GetAssetPaths(IRunState runState)
+    protected CustomEncounterModel(RoomType roomType)
     {
-        HashSet<string> assetPaths = new HashSet<string>();
-        if (this.HasScene) {
-            string ScenePath = Traverse.Create(this).Property<string>("ScenePath").Value;
-            assetPaths.Add(CustomScenePath ?? ScenePath);
+        if (roomType is not (RoomType.Monster or RoomType.Elite or RoomType.Boss))
+        {
+            BaseLibMain.Logger.Warn($"Encounter {Id.Entry} sets unexpected room type {roomType}");
         }
-        if (this.ExtraAssetPaths != null)
-            assetPaths.UnionWith(this.ExtraAssetPaths);
-        foreach ((MonsterModel monsterModel, string _) in (IEnumerable<(MonsterModel, string)>) this.MonstersWithSlots)
-            assetPaths.UnionWith(monsterModel.AssetPaths);
-        return (IEnumerable<string>) assetPaths;
-    }
-    private BackgroundAssets CreateBackgroundAssetsForCustom(Rng rng)//CreateBackgroundAssetsForCustom
-    {
-        return new BackgroundAssets(AssetsName, rng);//TODO create from custom path
+        RoomType = roomType;
     }
     
-    public override bool HasScene => false;
+    //Todo - Support non-event:/ bgm? needs audio stuff
+    
+    /*
+     Required:
+     
+     Override AllPossibleMonsters returning every monster that can spawn in this encounter.
+     Override GenerateMonsters returning mutable instances of the actual monsters that will appear in the encounter.
+        Use `this.Rng` if you need to choose randomly.
+     
+    
+    
+    Other overrides:
+    GetCameraScaling
+    Tags - The game will avoid generating two encounters that share a tag in a row.
+    IsWeak - Weak encounters are the first 3 encounters in act 1, and the first 2 in the other acts.
+    BossNodePath - May set something up for this. Uses skeleton data.
+    MapNodeAssetPaths - returns boss node assets
+    
+    */
+
+    /// <summary>
+    /// The path to an encounter scene.
+    /// An encounter scene is a 1920x1080 Control with Full Rect anchors, and Marker2D children for enemy positions.
+    /// The names of these markers can be used with CreatureCmd.Add when spawning additional enemies.
+    /// Initial enemies will be placed at these markers in the order they exist in the scene.
+    /// </summary>
     public virtual string? CustomScenePath => null;
-    public virtual Control CreateCustomScene()
+
+    /// <summary>
+    /// Should not be necessary to override; will return true if CustomScenePath returns a valid resource path or
+    /// a scene exists at the basegame expected path res://scenes/encounters/modname-encounter_name.tscn
+    /// </summary>
+    public override bool HasScene => (CustomScenePath != null && ResourceLoader.Exists(CustomScenePath)) ||
+                                     ResourceLoader.Exists(ScenePath);
+
+    /// <summary>
+    /// Generates and stores a custom background.
+    /// </summary>
+    /// <param name="parentAct"></param>
+    /// <param name="rng"></param>
+    protected void PrepCustomBackground(ActModel parentAct, Rng rng)
     {
-        string ScenePath = Traverse.Create(this).Property<string>("ScenePath").Value;
-        return PreloadManager.Cache.GetScene(CustomScenePath ?? ScenePath).Instantiate<Control>();
+        _customBackgroundAssets = CustomEncounterBackground(parentAct, rng);
+    }
+
+    /// <summary>
+    /// Works automatically if CustomEncounterBackground is overridden.
+    /// If not using CustomEncounterBackground and instead placing files in basegame expected paths,
+    /// override this to return true.
+    /// </summary>
+    protected override bool HasCustomBackground => _customBackgroundAssets != null;
+
+    /// <summary>
+    /// Override this method if you want to provide a custom encounter background for your scene using custom paths.
+    /// To do so, return a new CustomBackgroundAssets object.
+    /// Alternatively you can place your assets at res://scenes/backgrounds/modname-encounter_name/layers and
+    /// res://scenes/backgrounds/modname-encounter_name/modname-encounter_name_background.tscn, then override 
+    /// </summary>
+    public virtual BackgroundAssets? CustomEncounterBackground(ActModel parentAct, Rng rng)
+    {
+        return null;
     }
     
-    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.CreateScene))]
-    private static class ScenePatch {
-        static bool Prefix(EncounterModel __instance, ref Control __result) {
-            CustomEncounterModel? model = __instance as CustomEncounterModel;
-            if (__instance is not CustomEncounterModel)
+    
+    
+    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.ScenePath), MethodType.Getter)]
+    static class ScenePathPatch {
+        [HarmonyPrefix]
+        static bool Custom(EncounterModel __instance, ref string? __result) {
+            if (__instance is not CustomEncounterModel model)
                 return true;
-            __result = model!.CreateCustomScene();
-            return false;
+
+            __result = model.CustomScenePath;
+            return __result == null;
+        }
+    }
+    
+    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.GetBackgroundAssets))]
+    static class GetCustomBackgroundAssets {
+        [HarmonyPrefix]
+        static void Custom(EncounterModel __instance, ActModel parentAct, Rng rng) {
+            if (__instance is not CustomEncounterModel model)
+                return;
+
+            model.PrepCustomBackground(parentAct, rng);
+        }
+    }
+    
+    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.CreateBackgroundAssetsForCustom))]
+    static class ScenePatch {
+        [HarmonyPrefix]
+        static bool Custom(EncounterModel __instance, ref BackgroundAssets? __result) {
+            if (__instance is not CustomEncounterModel model)
+                return true;
+            
+            __result = model._customBackgroundAssets;
+            return __result == null;
         }
     }
 
-    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.GetAssetPaths))]
-    private static class AssetPathsPatch {
-        [HarmonyPrefix]
-        static bool Prefix(EncounterModel __instance, ref IEnumerable<string> __result, IRunState runState) {
-            CustomEncounterModel? model = __instance as CustomEncounterModel;
-            if (__instance is not CustomEncounterModel)
-                return true;
-            if (model!.UseVanillaBackground)
-                return true;
-            __result = model.GetAssetPaths(runState);
-            return false;
-        }
-    }
-    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.CreateBackground))]
-    private static class BackgroundPatch {
-        [HarmonyPrefix]
-        static bool Prefix(EncounterModel __instance, ref NCombatBackground __result, ActModel parentAct, Rng rng) {
-            CustomEncounterModel? model = __instance as CustomEncounterModel;
-            if (__instance is not CustomEncounterModel)
-                return true;
-            bool HasCustomBackground = Traverse.Create(model).Property<bool>("HasCustomBackground").Value;
-            if(!HasCustomBackground)
-                return true;
-            __result = model!.CreateCustomBackground(parentAct, rng);
-            return false;
-        }
-    }
 }
