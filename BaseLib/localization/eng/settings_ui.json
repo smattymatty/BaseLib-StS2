@@ -21,5 +21,24 @@
   "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Maximum number of lines retained in the in-game log window.",
 
   "BASELIB-LOG_FONT_SIZE.title": "Log font size",
-  "BASELIB-LOG_FONT_SIZE.hover.desc": "Can also be set with Ctrl+scroll in the log window."
+  "BASELIB-LOG_FONT_SIZE.hover.desc": "Can also be set with Ctrl+scroll in the log window.",
+
+  "BASELIB-HARMONY_DUMP_SECTION.title": "Harmony patch dump",
+
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.title": "Output file path",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.placeholder": "Absolute path or user://… (e.g. user://baselib_harmony_patch_dump.log)",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.hover.desc": "Where to write the patch report. Use Browse to pick a file, or type a full path or Godot user:// path.",
+
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.title": "Dump when main menu first loads",
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.hover.desc": "Once per game session, after the main menu finishes loading, write the report if the output path is set.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.title": "Choose output file",
+  "BASELIB-HARMONY_DUMP_BROWSE.title": "Browse…",
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.hover.desc": "Opens a save dialog and fills the output path above.",
+
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.title": "Write dump now",
+  "BASELIB-HARMONY_DUMP_NOW.title": "Dump now",
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.hover.desc": "Generates the report immediately using the output path. Check the log for success or errors.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_TITLE.title": "Save Harmony patch dump"
 }

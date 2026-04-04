@@ -1,4 +1,7 @@
-﻿namespace BaseLib.Config;
+using BaseLib.Diagnostics;
+using Godot;
+
+namespace BaseLib.Config;
 
 [HoverTipsByDefault]
 internal class BaseLibConfig : SimpleModConfig
@@ -16,6 +19,51 @@ internal class BaseLibConfig : SimpleModConfig
     [SliderRange(8, 48)]
     [SliderLabelFormat("{0:0} px")]
     public static double LogFontSize { get; set; } = 14;
+
+    [ConfigSection("HarmonyDumpSection")]
+    [ConfigTextInput(TextInputPreset.Anything, MaxLength = 1024)]
+    public static string HarmonyPatchDumpOutputPath { get; set; } = "";
+
+    public static bool HarmonyPatchDumpOnFirstMainMenu { get; set; }
+
+    [ConfigButton("HarmonyDumpBrowse")]
+    public static void HarmonyDumpBrowseForOutput(ModConfig config)
+    {
+        var tree = Engine.GetMainLoop() as SceneTree;
+        if (tree?.Root == null)
+        {
+            BaseLibMain.Logger.Warn("[HarmonyDump] Cannot open file dialog: SceneTree root is not available.");
+            return;
+        }
+
+        var dialog = new FileDialog
+        {
+            Title = GetBaseLibLabelText("HarmonyDumpBrowseTitle"),
+            FileMode = FileDialog.FileModeEnum.SaveFile,
+            Access = FileDialog.AccessEnum.Filesystem,
+            CurrentFile = "baselib_harmony_patch_dump.log",
+        };
+        dialog.AddFilter("*.log", "Log");
+        dialog.AddFilter("*.txt", "Text");
+
+        dialog.FileSelected += path =>
+        {
+            HarmonyPatchDumpOutputPath = path;
+            config.Save();
+            config.ConfigReloaded();
+            dialog.QueueFree();
+        };
+        dialog.Canceled += dialog.QueueFree;
+
+        tree.Root.AddChild(dialog);
+        dialog.PopupCenteredRatio(0.55f);
+    }
+
+    [ConfigButton("HarmonyDumpNow")]
+    public static void HarmonyDumpWriteNow(ModConfig _)
+    {
+        HarmonyPatchDumpCoordinator.TryManualDumpFromSettings();
+    }
 
     [ConfigHideInUI] public static int LastLogLevel { get; set; } = 3; // Default to Info
     [ConfigHideInUI] public static bool LogUseRegex { get; set; } = false;
