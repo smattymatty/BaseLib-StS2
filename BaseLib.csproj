@@ -59,7 +59,7 @@
         <None Include="project.godot" />
         <None Include="README.md" Pack="true" PackagePath="/"/>
         <None Include=".gitignore" />
-        <None Include="local.props" />
+        <None Include="local.props" Condition="Exists('local.props')" Pack="false" CopyToOutputDirectory="Never" />
         <None Include="local.props.template" />
         <None Include="Sts2PathDiscovery.props" />
         <None Include="Notes.txt" />
